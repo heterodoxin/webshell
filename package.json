@@ -1,0 +1,17 @@
+{
+  "name": "webshell",
+  "version": "1.0.0",
+  "description": "Browser-based terminal: a real PTY on the server, an HTML/CSS terminal on the client. Only text and color cross the wire.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "node-pty": "^1.0.0",
+    "ws": "^8.18.0"
+  },
+  "allowScripts": {
+    "node-pty@1.1.0": true
+  }
+}

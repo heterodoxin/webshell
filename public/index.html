@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>webshell</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header id="bar">
+    <span id="dot" class="state-off" title="connection"></span>
+    <span id="title">webshell</span>
+    <span id="info"></span>
+    <span class="spacer"></span>
+    <button id="reconnect" hidden>reconnect</button>
+  </header>
+
+  <main id="viewport" tabindex="-1">
+    <div id="scrollback" aria-hidden="true"></div>
+    <div id="screen">
+      <div id="rows"></div>
+      <div id="cursor"></div>
+      <span id="probe">MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM</span>
+    </div>
+  </main>
+
+  <div id="focus-hint" hidden>click or type to focus</div>
+
+  <textarea id="input" autocomplete="off" autocapitalize="off"
+            autocorrect="off" spellcheck="false" aria-label="terminal input"></textarea>
+
+  <script src="terminal.js"></script>
+</body>
+</html>
