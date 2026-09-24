@@ -54,3 +54,7 @@ Emulator behavior:
 - `window.webshell` exposes `{term, write, send, fit}` for scripted use.
 
 The shell runs with the user and permissions of the server process; anyone who reaches the port can use it, which is why the default bind is loopback.
+
+---
+
+> **Disclosure:** This project was made with the assistance of AI.
