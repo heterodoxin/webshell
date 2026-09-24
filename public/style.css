@@ -54,7 +54,14 @@ body {
 .state-on  { background: #3fb950; box-shadow: 0 0 6px #3fb95088; }
 .state-off { background: #f85149; box-shadow: 0 0 6px #f8514988; }
 
-#title { font-weight: 700; color: var(--fg); }
+#title {
+  font-weight: 700;
+  color: var(--fg);
+  max-width: 45vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 #info  { color: var(--dim); }
 .spacer { flex: 1; }
 
@@ -177,4 +184,14 @@ body.focused #cursor.on { animation: blink 1.1s steps(1, end) infinite; }
   resize: none;
   overflow: hidden;
   font-size: 16px; /* avoids iOS zoom-on-focus */
+}
+
+/* ---------- output links ---------- */
+
+#viewport a { color: inherit; text-decoration: none; }
+#viewport a:visited { color: inherit; }
+#viewport a:hover { text-decoration: underline; cursor: pointer; }
+
+@media (prefers-reduced-motion: reduce) {
+  body.focused #cursor.on { animation: none; }
 }

@@ -137,9 +137,14 @@ wss.on('connection', (ws) => {
   p.onData((raw) => {
     const text = typeof raw === 'string' ? raw : decoder.write(raw);
     if (!text || ws.readyState !== WebSocket.OPEN) return;
-    // Split big bursts so no single frame gets unwieldy.
-    for (let i = 0; i < text.length; i += CHUNK) {
-      send(ws, { type: 'data', data: text.slice(i, i + CHUNK) });
+    // Split big bursts so no single frame gets unwieldy, never between surrogate halves.
+    let i = 0;
+    while (i < text.length) {
+      let end = Math.min(i + CHUNK, text.length);
+      const last = text.charCodeAt(end - 1);
+      if (end < text.length && end > i + 1 && last >= 0xd800 && last <= 0xdbff) end--;
+      send(ws, { type: 'data', data: text.slice(i, end) });
+      i = end;
     }
   });
 

@@ -33,7 +33,7 @@ Compared with web terminals that stream screenshots or remote-desktop frames:
 
 Wire protocol — JSON messages on `/ws`:
 
-- server → client: `{type:'data', data}` (raw bytes as text, split into frames of at most 64 KB) and `{type:'exit', code}`
+- server → client: `{type:'data', data}` (raw bytes as text, split into frames of at most 64 KB with surrogate pairs kept intact) and `{type:'exit', code}`
 - client → server: `{type:'input', data}` and `{type:'resize', cols, rows}`
 
 Environment variables:
@@ -48,6 +48,8 @@ Environment variables:
 Emulator behavior:
 
 - Supports SGR 16/256/truecolor, bold/dim/italic/underline/inverse/strike, double-width and combining characters, the alternate screen, scroll regions, DSR/DA replies, bracketed paste, and deferred line wrapping; scrollback holds 5000 lines.
+- Grapheme clusters — combining accents, ZWJ emoji sequences, flag pairs, and skin-tone modifiers — occupy one cell so columns stay aligned with the shell.
+- URLs in output render as links that open in a new tab; `Ctrl`+`=` and `Ctrl`+`-` adjust font size (`Ctrl`+`0` restores the default), persisted per browser.
 - Shrinking the window in rows anchors content to the last used line and pushes overflow into scrollback; shrinking in columns keeps past-edge cells (reachable by horizontal scrolling) so text reappears when the window grows.
 - `window.webshell` exposes `{term, write, send, fit}` for scripted use.
 

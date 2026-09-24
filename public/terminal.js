@@ -49,7 +49,18 @@ function isCombining(cp) {
     (cp >= 0x20d0 && cp <= 0x20f0) || (cp >= 0xfe00 && cp <= 0xfe0f) ||
     (cp >= 0xfe20 && cp <= 0xfe2f) ||
     cp === 0x200b || cp === 0x200c || cp === 0x200d || cp === 0x2060 ||
-    (cp >= 0x2061 && cp <= 0x2064)
+    (cp >= 0x2061 && cp <= 0x2064) ||
+    cp === 0x05bf || (cp >= 0x05c1 && cp <= 0x05c2) ||
+    (cp >= 0x05c4 && cp <= 0x05c5) || cp === 0x05c7 ||
+    cp === 0x061c || cp === 0x0670 ||
+    (cp >= 0x06d6 && cp <= 0x06dc) || (cp >= 0x06df && cp <= 0x06e4) ||
+    (cp >= 0x06e7 && cp <= 0x06e8) || (cp >= 0x06ea && cp <= 0x06ed) ||
+    (cp >= 0x0900 && cp <= 0x0902) || cp === 0x093c ||
+    (cp >= 0x0941 && cp <= 0x0948) || (cp >= 0x0951 && cp <= 0x0954) ||
+    (cp >= 0x0962 && cp <= 0x0963) ||
+    cp === 0x0981 || cp === 0x09bc || (cp >= 0x09c1 && cp <= 0x09c4) ||
+    (cp >= 0x0e47 && cp <= 0x0e4e) ||
+    (cp >= 0x200e && cp <= 0x200f) || cp === 0xfeff
   );
 }
 
@@ -72,6 +83,14 @@ function charWidth(cp) {
     (cp >= 0x20000 && cp <= 0x3fffd)
   ) return 2;
   return 1;
+}
+
+function isOnlyRI(s) {
+  for (let i = 0; i < s.length; i += 2) {
+    const cp = s.codePointAt(i);
+    if (cp < 0x1f1e6 || cp > 0x1f1ff) return false;
+  }
+  return s.length > 0;
 }
 
 const BLANK = Object.freeze({ ch: ' ', fg: null, bg: null, at: 0 });
@@ -113,6 +132,7 @@ class Term {
     this.csiBuf = '';
     this.oscBuf = '';
     this.title = '';
+    this.surrogateHold = '';
 
     this.reset(true);
   }
@@ -159,26 +179,12 @@ class Term {
 
   /* ---------------- writing characters ---------------- */
 
-  putString(s) {
-    for (let i = 0; i < s.length; i++) this.putChar(s[i]);
-  }
-
   putChar(ch) {
     const cp = ch.codePointAt(0);
     const w = charWidth(cp);
 
-    if (w === 0) {
-      // combining / zero-width: append to the previous cell
-      const x = this.wrapPending ? this.cursor.x : this.cursor.x - 1;
-      const row = this.screen[this.cursor.y];
-      if (x >= 0 && x < this.cols) {
-        const prev = row[x];
-        if (prev && prev.ch !== ' ' && prev.ch !== CONT && prev.ch !== BLANK.ch) {
-          row[x] = { ch: prev.ch + ch, fg: prev.fg, bg: prev.bg, at: prev.at, w: prev.w };
-        }
-      }
-      return;
-    }
+    if (this.attachToPrev(cp, ch, w)) return;
+    if (w === 0) return;
 
     if (this.wrapPending) {
       this.wrapPending = false;
@@ -232,6 +238,39 @@ class Term {
       this.cursor.x = this.cols - 1;
       this.wrapPending = this.wrap;
     }
+  }
+
+  /** Merge combining marks, emoji modifiers, ZWJ sequences, and flag pairs into the previous cell. */
+  attachToPrev(cp, ch, w) {
+    let i = this.wrapPending ? this.cursor.x : this.cursor.x - 1;
+    if (i >= this.cols) i = this.cols - 1;
+    const row = this.screen[this.cursor.y];
+    if (i >= 0 && row[i] && row[i].ch === CONT) i--;
+    const cell = i >= 0 ? row[i] : null;
+    const joinable = !!cell && cell.ch !== ' ' && cell.ch !== BLANK.ch;
+    const isVS16 = cp === 0xfe0f;
+    const isSkin = cp >= 0x1f3fb && cp <= 0x1f3ff;
+    const attach = joinable && (
+      w === 0 || isVS16 || isSkin || cell.ch.endsWith('\u200d') ||
+      (cp >= 0x1f1e6 && cp <= 0x1f1ff && cell.ch.length < 4 && isOnlyRI(cell.ch))
+    );
+    if (!attach) return w === 0;
+
+    const widen = (isVS16 || isSkin) && cell.w !== 2 && i + 1 < this.cols;
+    const merged = { ch: cell.ch + ch, fg: cell.fg, bg: cell.bg, at: cell.at, w: widen ? 2 : cell.w };
+    if (widen) {
+      this.sanitizeAt(row, i + 1);
+      row[i + 1] = { ch: CONT, fg: cell.fg, bg: cell.bg, at: cell.at };
+      if (this.cursor.x === i + 1) {
+        this.cursor.x = i + 2;
+        if (this.cursor.x >= this.cols) {
+          this.cursor.x = this.cols - 1;
+          this.wrapPending = this.wrap;
+        }
+      }
+    }
+    row[i] = merged;
+    return true;
   }
 
   /** Avoid dangling halves when overwriting part of a wide character. */
@@ -580,6 +619,17 @@ class Term {
 
   write(str) {
     if (!str) return;
+    if (this.surrogateHold) {
+      str = this.surrogateHold + str;
+      this.surrogateHold = '';
+    }
+    // hold a trailing high surrogate until its pair arrives in the next frame
+    const tail = str.charCodeAt(str.length - 1);
+    if (tail >= 0xd800 && tail <= 0xdbff) {
+      this.surrogateHold = str.slice(-1);
+      str = str.slice(0, -1);
+      if (!str) return;
+    }
     let i = 0;
     const n = str.length;
 
@@ -1058,6 +1108,7 @@ function keySeq(e, term) {
       div.className = 'sline';
       div.innerHTML = html;
       scrollback.appendChild(div);
+      linkify(div);
       while (scrollback.childElementCount > 5000) scrollback.removeChild(scrollback.firstElementChild);
     },
     onClearScrollback() { scrollback.innerHTML = ''; },
@@ -1082,6 +1133,7 @@ function keySeq(e, term) {
     requestAnimationFrame(() => {
       pending = false;
       term.render(rowsEl, cursorEl);
+      linkify(rowsEl);
       if (follow) viewport.scrollTop = viewport.scrollHeight;
     });
   }
@@ -1090,6 +1142,67 @@ function keySeq(e, term) {
     const gap = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
     follow = gap < cellH * 1.5;
   });
+
+  /* ---------- clickable links ---------- */
+
+  const LINK_RE = /(?:https?:\/\/|ftp:\/\/|mailto:)[^\s<>'"()]+|www\.[^\s<>'"()]+/gi;
+
+  function linkify(root) {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode(n) {
+        if (!n.nodeValue || !/(https?:\/\/|ftp:\/\/|mailto:|www\.)/.test(n.nodeValue)) {
+          return NodeFilter.FILTER_REJECT;
+        }
+        return n.parentElement && n.parentElement.closest('a')
+          ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT;
+      },
+    });
+    const nodes = [];
+    while (walker.nextNode()) nodes.push(walker.currentNode);
+    for (const node of nodes) {
+      const text = node.nodeValue;
+      const parts = [];
+      let last = 0, m;
+      LINK_RE.lastIndex = 0;
+      while ((m = LINK_RE.exec(text))) {
+        const url = m[0].replace(/[.,;:!?]+$/, '');
+        if (url.length < 5) { LINK_RE.lastIndex = m.index + 1; continue; }
+        if (m.index > last) parts.push({ t: text.slice(last, m.index) });
+        parts.push({ u: url });
+        last = m.index + url.length;
+        LINK_RE.lastIndex = last;
+      }
+      if (last === 0) continue;
+      if (last < text.length) parts.push({ t: text.slice(last) });
+      const frag = document.createDocumentFragment();
+      for (const p of parts) {
+        if (p.t !== undefined) {
+          frag.appendChild(document.createTextNode(p.t));
+        } else {
+          const a = document.createElement('a');
+          a.href = p.u.startsWith('www.') ? 'https://' + p.u : p.u;
+          a.textContent = p.u;
+          a.target = '_blank';
+          a.rel = 'noopener';
+          frag.appendChild(a);
+        }
+      }
+      node.parentNode.replaceChild(frag, node);
+    }
+  }
+
+  /* ---------- font size ---------- */
+
+  const SIZE_MIN = 8, SIZE_MAX = 28, SIZE_DEFAULT = 14;
+  let fontPx = SIZE_DEFAULT;
+
+  function setFont(px) {
+    fontPx = Math.max(SIZE_MIN, Math.min(SIZE_MAX, px));
+    document.documentElement.style.setProperty('--size', fontPx + 'px');
+    try { localStorage.setItem('webshell.size', String(fontPx)); } catch {}
+    fit();
+    scheduleRender();
+  }
 
   /* ---------- fit to window ---------- */
 
@@ -1194,6 +1307,16 @@ function keySeq(e, term) {
       ta.focus({ preventScroll: true });
     }
 
+    const fontKey = e.ctrlKey && !e.altKey
+      && ['=', '+', '-', '_', '0'].includes(e.key);
+    if (fontKey) {
+      e.preventDefault();
+      if (e.key === '=' || e.key === '+') setFont(fontPx + 1);
+      else if (e.key === '-' || e.key === '_') setFont(fontPx - 1);
+      else setFont(SIZE_DEFAULT);
+      return;
+    }
+
     const seq = keySeq(e, term);
     if (seq !== null && seq !== undefined) {
       e.preventDefault();
@@ -1230,6 +1353,14 @@ function keySeq(e, term) {
   });
 
   /* ---------- go ---------- */
+
+  try {
+    const saved = Number(localStorage.getItem('webshell.size'));
+    if (saved >= SIZE_MIN && saved <= SIZE_MAX) {
+      fontPx = saved;
+      document.documentElement.style.setProperty('--size', fontPx + 'px');
+    }
+  } catch {}
 
   fit();
   scheduleRender();
