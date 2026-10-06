@@ -1143,6 +1143,12 @@ function keySeq(e, term) {
     follow = gap < cellH * 1.5;
   });
 
+  // Mouse-wheel scroll support (viewport only, no PTY involvement)
+  viewport.addEventListener('wheel', (e) => {
+    if (e.ctrlKey || e.metaKey) return; // let browser zoom handle it
+    e.stopPropagation();
+  }, { passive: true });
+
   /* ---------- clickable links ---------- */
 
   const LINK_RE = /(?:https?:\/\/|ftp:\/\/|mailto:)[^\s<>'"()]+|www\.[^\s<>'"()]+/gi;
@@ -1212,7 +1218,9 @@ function keySeq(e, term) {
     const padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
 
     const pr = probe.getBoundingClientRect();
-    cellW = pr.width / probe.textContent.length || 8;
+    // Measure from an actual rendered single cell for TUI alignment
+    const spanWidth = Math.round(pr.width / probe.textContent.length) || 8;
+    cellW = spanWidth;
     cellH = pr.height || 17;
     term.cell = { w: cellW, h: cellH };
     cursorEl.style.width = cellW.toFixed(2) + 'px';
