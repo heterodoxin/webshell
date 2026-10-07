@@ -50,6 +50,7 @@ Emulator behavior:
 - Supports SGR 16/256/truecolor, bold/dim/italic/underline/inverse/strike, double-width and combining characters, the alternate screen, scroll regions, DSR/DA replies, bracketed paste, and deferred line wrapping; scrollback holds 5000 lines.
 - Grapheme clusters — combining accents, ZWJ emoji sequences, flag pairs, and skin-tone modifiers — occupy one cell so columns stay aligned with the shell.
 - URLs in output render as links that open in a new tab; `Ctrl`+`=` and `Ctrl`+`-` adjust font size (`Ctrl`+`0` restores the default), persisted per browser.
+- Lines a full-screen program (alternate screen) scrolls off the top are archived to scrollback, so history above a running TUI stays reachable; when such a program also enables mouse reporting (`?1000`, `?1002`, `?1003`, `?9`), wheel events are encoded as SGR mouse reports and delivered to it instead of scrolling the page, which is how TUIs that redraw in place scroll their own view.
 - Shrinking the window in rows anchors content to the last used line and pushes overflow into scrollback; shrinking in columns keeps past-edge cells (reachable by horizontal scrolling) so text reappears when the window grows.
 - `window.webshell` exposes `{term, write, send, fit}` for scripted use.
 

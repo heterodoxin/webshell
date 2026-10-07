@@ -139,6 +139,12 @@ class Term {
 
   get screen() { return this.isAlt && this.alt ? this.alt : this.normal; }
 
+  // True when the running program asked to receive mouse reports, so the wheel belongs to it.
+  get mouseReporting() {
+    return this.mouseMode.has(9) || this.mouseMode.has(1000)
+      || this.mouseMode.has(1002) || this.mouseMode.has(1003);
+  }
+
   get savedSlot() { return this.isAlt ? this.savedAlt : this.savedNormal; }
   set savedSlot(v) { if (this.isAlt) this.savedAlt = v; else this.savedNormal = v; }
 
@@ -155,7 +161,7 @@ class Term {
     this.insertMode = false;
     this.bracketedPaste = false;
     this.lnm = false;
-    this.mouseMode = 0;
+    this.mouseMode = new Set();
     this.lastCh = '';
     this.savedNormal = null;
     this.savedAlt = null;
@@ -809,7 +815,7 @@ class Term {
             case 1048: on ? (this.savedSlot = this.snapshotCursor()) : (this.savedSlot && this.restoreSnapshot(this.savedSlot)); break;
             case 1049: on ? this.enterAlt(true) : this.exitAlt(true); break;
             case 9: case 1000: case 1002: case 1003: case 1006:
-              if (on) this.mouseMode = p; else if (this.mouseMode === p) this.mouseMode = 0; break;
+              if (on) this.mouseMode.add(p); else this.mouseMode.delete(p); break;
             case 2004: this.bracketedPaste = on; break;
             default: break;
           }
@@ -858,8 +864,8 @@ class Term {
         const M = { 1: this.appCursor, 6: this.originMode, 7: this.wrap, 12: false,
                     25: this.cursorVisible, 47: this.isAlt, 1047: this.isAlt,
                     1049: this.isAlt, 2004: this.bracketedPaste,
-                    9: this.mouseMode === 9, 1000: !!this.mouseMode, 1002: !!this.mouseMode,
-                    1003: !!this.mouseMode, 1006: !!this.mouseMode };
+                    9: this.mouseMode.has(9), 1000: this.mouseMode.has(1000), 1002: this.mouseMode.has(1002),
+                    1003: this.mouseMode.has(1003), 1006: this.mouseMode.has(1006) };
         if (p in M) on = M[p] ? 1 : 2;
       }
       this.onResponse(`\u001b[${priv}${p};${on}$y`);
@@ -1094,7 +1100,7 @@ function keySeq(e, term) {
         dot = $('dot'), titleEl = $('title'), infoEl = $('info'),
         reconnectBtn = $('reconnect'), hint = $('focus-hint');
 
-  let cellW = 8, cellH = 17;
+  let cellW = 8, cellH = 17, padLeft = 0, padTop = 0;
   let ws = null;
   let follow = true;
   let pending = false;
@@ -1143,11 +1149,23 @@ function keySeq(e, term) {
     follow = gap < cellH * 1.5;
   });
 
-  // Mouse-wheel scroll support (viewport only, no PTY involvement)
+  // The wheel scrolls the viewport, or goes to the program when it asked for mouse reports.
   viewport.addEventListener('wheel', (e) => {
     if (e.ctrlKey || e.metaKey) return; // let browser zoom handle it
+    if (term.mouseReporting) {
+      e.preventDefault();
+      const rect = viewport.getBoundingClientRect();
+      const x = Math.min(term.cols, Math.max(1, Math.floor((e.clientX - rect.left - padLeft) / cellW) + 1));
+      const y = Math.min(term.rows, Math.max(1, Math.floor((e.clientY - rect.top - padTop) / cellH) + 1));
+      let cb = e.deltaY < 0 ? 64 : 65;
+      if (e.shiftKey) cb += 4;
+      if (e.altKey) cb += 8;
+      const notches = Math.min(5, Math.max(1, Math.round(Math.abs(e.deltaY) / 50)));
+      for (let i = 0; i < notches; i++) send({ type: 'input', data: `\u001b[<${cb};${x};${y}M` });
+      return;
+    }
     e.stopPropagation();
-  }, { passive: true });
+  }, { passive: false });
 
   /* ---------- clickable links ---------- */
 
@@ -1214,6 +1232,8 @@ function keySeq(e, term) {
 
   function fit() {
     const cs = getComputedStyle(viewport);
+    padLeft = parseFloat(cs.paddingLeft) || 0;
+    padTop = parseFloat(cs.paddingTop) || 0;
     const padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
     const padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
 
