@@ -123,8 +123,6 @@ body {
   min-height: calc(var(--size) * var(--line));
 }
 
-body.alt #scrollback { display: none; }
-
 /* ---------- cursor ---------- */
 
 #cursor {

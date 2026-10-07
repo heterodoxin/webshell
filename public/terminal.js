@@ -319,7 +319,7 @@ class Term {
       const removed = this.screen[top];
       for (let y = top; y < bot; y++) this.screen[y] = this.screen[y + 1];
       this.screen[bot] = blankRow(this.cols);
-      if (!this.isAlt && top === 0) this.onScrollLine(this.rowToHTML(removed));
+      if (top === 0) this.onScrollLine(this.rowToHTML(removed));
     }
   }
 
@@ -375,7 +375,7 @@ class Term {
       const removed = this.screen[top];
       for (let yy = top; yy < bot; yy++) this.screen[yy] = this.screen[yy + 1];
       this.screen[bot] = blankRow(this.cols);
-      if (!this.isAlt && top === 0) this.onScrollLine(this.rowToHTML(removed));
+      if (top === 0) this.onScrollLine(this.rowToHTML(removed));
     }
   }
 
@@ -1114,7 +1114,7 @@ function keySeq(e, term) {
     onClearScrollback() { scrollback.innerHTML = ''; },
     onAlt(isAlt) {
       document.body.classList.toggle('alt', isAlt);
-      if (isAlt) { follow = true; }
+      follow = true;
       scheduleRender();
     },
     onTitle(t) {

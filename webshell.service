@@ -1,0 +1,16 @@
+[Unit]
+Description=webshell browser terminal
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/var/home/Heterodoxin/webshell
+Environment=NODE_PATH=/var/home/Heterodoxin/webshell/node_modules
+Environment=PORT=8080
+Environment=HOST=127.0.0.1
+ExecStart=/home/linuxbrew/.linuxbrew/bin/node server.js
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
